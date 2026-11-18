@@ -1,3 +1,48 @@
+# 1.1.76
+
+## 中文
+
+- 版本 **1.1.76**，修两个「客户端认不出 / 预设挂不上」的兼容缺陷，验证环境 `dsh-desktop-next 2.0.23-next`（Electron 客户端，宿主封在 `resources/app.asar`）。
+- **桌面身份收敛成一册注册表**：新增 `DESKTOP_EXE_FAMILIES`（`DSH Desktop` / `DSH NEXT` / `DeepSeek Harness`），`isDesktopExecutable`、`isDesktopExeName`、`looksLikeDesktopName`、`looksLikeDesktopNameTail`、`exeCandidatesBeside`、进程枚举 PowerShell、快捷方式扫描、注册表 Uninstall 清单、ASAR 换名脚本、重启脚本的 WQL 全部由它派生。此前 `DSH NEXT` 只补了 `isDesktopExecutable` 一处，注册表清单、候选 exe 路径、重启脚本 WQL 仍写死旧名字 → 面板一直停在「待解开」，点重启也找不到进程。
+- **结构化兜底**：新增 `looksLikeDesktopShell()` / `dirLooksLikeDesktopInstall()` / `anyExecutableIn()`。名字不认识时，只认「同级 `resources/app.asar`（或已解开的 `resources/app`）」的 exe；`firstExistingExe()` 增加同样兜底。发行名再换一次也定位得到，同名第三方进程不会被误认。
+- 修复重启脚本里 `Win32_Process WHERE Name = 'DeepSeek Harness.exe'` 造成的空枚举：改成 `Name LIKE '%DSH%' / '%Harness%' / '%deepseek%'` 的候选集，真正的判据仍是 `samePath(ep, exe) || ep.startsWith(installRoot)`。
+- 提示文案不再写死 `DSH Desktop.exe`，改为「桌面客户端可执行文件（DSH Desktop / DSH NEXT / DeepSeek Harness）」。
+- **预设宿主兼容守卫**：新增 `lib/redteam/host-compat.js`。`repairPresetText()` 挂进 `installPreset()` 自愈链，摘掉宿主 2.0.23-next 已禁用的 `persona` / `toolFilter`（`dsh-tool-subagent` 的 `apply()` 见到就抛错，整个 delegation group 挂不上，模式下拉显示「加载失败」、`preset-declare.json` 记 `registered-broken`），并把已消失的 `modelSelectionSettings` 升级为 `modelSelection` + `modelDiscovery`、删掉同样不存在的 `backgroundMode`；`fork` 行跳过升级以保 KV cache。`sanitizePresetDefinition()` 在 `registry.register()` 前再摘一次（覆盖手工改过的副本与随包模板分支），结果写进 `preset-declare.json` 的 `hostCompatStripped`。
+- 随包预设 `presets/redteam/agent.cordis.yml` 同步成新 schema：`modelSelection: true` + `modelDiscovery: true`，删除 fork / codex / claude-code 行的 `backgroundMode`；`installPreset()` 首次安装时对 `.yml` 也过一遍 `repairPresetText()`。
+- 验证：`node --check` 全部通过；对 2.0.23-next 实机探测 `isDesktopExecutable` / `findDesktopAppExecutable` / `resolveDesktopAiBase` 均命中；预设解析 19 个插件、delegation 9 行、`repairPresetText` 幂等（干净文件 `changed=false`）；实机补丁表 `applied 64 / na 10 / skipped 6 / missing_file 2 / failed 0`。
+
+## English
+
+- **1.1.76**; fixes two "client not recognised / preset will not mount" compatibility defects on `dsh-desktop-next 2.0.23-next` (Electron client, host sealed in `resources/app.asar`).
+- **Desktop identity collapsed into one registry**: `DESKTOP_EXE_FAMILIES` (`DSH Desktop` / `DSH NEXT` / `DeepSeek Harness`) now feeds `isDesktopExecutable`, `isDesktopExeName`, `looksLikeDesktopName`, `looksLikeDesktopNameTail`, `exeCandidatesBeside`, the process-enumeration PowerShell, the shortcut scan, the Uninstall registry scan, the ASAR swap script and the restart WQL. `DSH NEXT` had only been added to `isDesktopExecutable`, so the registry names, the candidate exe paths and the restart WQL still hard-coded the old names — the dock stayed on "pending unpack" and restart could not find the process.
+- **Structural fallback**: `looksLikeDesktopShell()` / `dirLooksLikeDesktopInstall()` / `anyExecutableIn()` accept an executable whose sibling `resources/app.asar` (or an already unpacked `resources/app`) exists, and `firstExistingExe()` falls back the same way. A future rename still resolves; a third-party process with a similar name does not.
+- Restart script no longer enumerates `Win32_Process WHERE Name = 'DeepSeek Harness.exe'` (empty for DSH NEXT); it now selects a broad `Name LIKE` candidate set while `samePath(ep, exe) || ep.startsWith(installRoot)` still decides.
+- User-facing text no longer hard-codes `DSH Desktop.exe`.
+- **Preset host-schema guard**: new `lib/redteam/host-compat.js`. `repairPresetText()` joins the `installPreset()` self-heal chain, dropping `persona` / `toolFilter` (which make `dsh-tool-subagent`'s `apply()` throw and take the whole delegation group with it: mode dropdown shows "load failed", `preset-declare.json` records `registered-broken`), upgrading the removed `modelSelectionSettings` to `modelSelection` + `modelDiscovery`, and deleting the equally absent `backgroundMode`; `fork` rows skip the upgrade to keep KV-cache reuse. `sanitizePresetDefinition()` strips the same keys again before `registry.register()`, and reports them as `hostCompatStripped` in `preset-declare.json`.
+- Bundled `presets/redteam/agent.cordis.yml` moved to the new schema; `installPreset()` also runs `repairPresetText()` over `.yml` files on a fresh install.
+- Verified: `node --check` clean; live probes on 2.0.23-next resolve the client exe, package root and AI base; the preset parses to 19 plugins with 9 delegation rows and `repairPresetText` is idempotent; the live patch table reports `applied 64 / na 10 / skipped 6 / missing_file 2 / failed 0`.
+# 1.1.73
+
+## 中文
+
+- 版本 **1.1.73**，`dshTarget` 升到 `0.2.2-rc.3`（npm `next` 通道最新；`latest` 仍是 0.2.2-rc.1）。
+- 第一轮（0.2.2-rc.1）修 6 处锚点回归：#14 `displayReason` 收敛为函数调用、#54 交付物提示词迁到 `dsh-deliverable-file-references`、#60 `run_code` 描述迁到 `dsh-tool-executor-ptc`、#62 审批管线拆到 `lib/pipeline.js`、#67 代码整体缩进变化、#74 `assemble` 调用改成分段对象。
+- 第二轮（0.2.2-rc.3）再修 4 处：#13 / #35 改用 `SandboxEscalationError` 且 `cancelled` 分支加了 `signal?.throwIfAborted()`、#18 `tools/post-execute` 去掉 block 分支、#62 deny 收敛为 `approvalDenial()` 助手。#56 因前端 bundle 重新压缩后锚点不再稳定，保持 `skipped`（可选条，只影响回退后的显示）。
+- 新增 5 个文件键：`dsh-tools-pipeline`、`dsh-tools-types-pipeline`、`tool-executor-ptc`、`tool-executor-ptc-types`、`deliverables-prompt-refs`，全部 `allExisting`，包缺失时落 `missing_file` 不影响其余条目。
+- 验证：0.2.0-rc.2 / 0.2.1-rc.3 / 0.2.2-rc.1 / rc.2 / rc.3 状态探测均 **0 回归**；rc.3 上实际改写 37 个文件、`node --check` 全过；应用后 `dsh web` 正常启动。
+- 新增 `install.ps1`（先复制到 ASCII 目录规避 pnpm store 锁；profile 用无 BOM 写入）、`check.ps1`（只读自检）、`INSTALL-OTHER-PC.md`、`QUICKSTART.txt`、`ADAPTATION-NOTES.md`。
+- README 中英文重写为中性表述（本地运行时适配、可回滚的宿主默认值补丁表），去掉容易触发拦截的措辞；功能与署名要求不变。
+
+## English
+
+- **1.1.73**; `dshTarget` is now `0.2.2-rc.3` (newest on npm `next`; `latest` is still 0.2.2-rc.1).
+- Round 1 (0.2.2-rc.1), 6 anchors: #14 `displayReason` helper, #54 deliverable prompt moved to `dsh-deliverable-file-references`, #60 `run_code` description moved to `dsh-tool-executor-ptc`, #62 approval pipeline split into `lib/pipeline.js`, #67 indentation, #74 `assemble` takes a sectioned object.
+- Round 2 (0.2.2-rc.3), 4 anchors: #13 / #35 use `SandboxEscalationError` and `signal?.throwIfAborted()`, #18 post-execute lost its block branch, #62 deny collapsed into an `approvalDenial()` helper. #56 stays `skipped` (optional, display-only; the minified client bundle no longer offers a stable anchor).
+- Five new file keys: `dsh-tools-pipeline`, `dsh-tools-types-pipeline`, `tool-executor-ptc`, `tool-executor-ptc-types`, `deliverables-prompt-refs`; all `allExisting`, so a missing package yields `missing_file` without affecting the rest.
+- Verified: zero regressions in status probes on 0.2.0-rc.2, 0.2.1-rc.3 and 0.2.2-rc.1/rc.2/rc.3; on rc.3 37 files are rewritten and all pass `node --check`; `dsh web` boots after applying.
+- Added `install.ps1` (stages to an ASCII path for pnpm store locks, BOM-less profile writes), `check.ps1` (read-only preflight), `INSTALL-OTHER-PC.md`, `QUICKSTART.txt`, `ADAPTATION-NOTES.md`.
+- README (zh/en) rewritten in neutral wording (local runtime adaptation, reversible host-default patch table); features and attribution unchanged.
+
 # 1.1.71
 
 ## 中文

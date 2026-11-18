@@ -293,9 +293,10 @@
       name: '@deepseek-ai/dsh-tool-subagent-control'
       disabled: false
 
-    - id: tool-subagent-list-agents
-      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
-      disabled: false
+    # list_agents 由上面那条 tool-subagent-control 的 apply() 一并注册；旧版另开一行
+    # `name: @deepseek-ai/dsh-tool-subagent-control/list-agents` 在 0.2.2-rc.3 已失效：
+    # 该包 exports 只有 "."（lib/index.js），没有 ./list-agents 子路径 → 加载器解析不到模块
+    # → "never started"，整个预设 registered-broken。故此处不留独立行。
 
     - id: tool-subagent
       name: '@deepseek-ai/dsh-tool-subagent'
@@ -303,21 +304,21 @@
       config:
         provider: spawn
         toolName: subagent
-        modelSelectionSettings: true
-        backgroundMode: continuable
+        # 2.0.23-next 的 schema 里没有 modelSelectionSettings / backgroundMode：前者改名成下面
+        # 两个开关，后者整个没了（Schemastery 静默忽略，写了也不生效，所以直接删）。
+        modelSelection: true
+        modelDiscovery: true
         # 子智能体是角色执行者（信息收集/资产梳理/漏洞发现/漏洞利用/内网渗透），**必须是叶子节点**：
-        # 靠提示词劝"不要再往下委派"是软的——模型完全可以无视。这里直接把委派工具从子会话的
-        # 工具目录里摘掉，子智能体连看都看不到 subagent / subagent_fork / workflow / ralph。
-        # maxDepth 同时收成 1 作为二道保险（默认 3 层太深，会白吃并发预算与上下文）。
+        # 靠提示词劝"不要再往下委派"是软的——模型完全可以无视，所以用 maxDepth 硬限深度。
+        # maxDepth 收成 1（默认 3 层太深，会白吃并发预算与上下文）：子智能体再派发直接失败。
         maxDepth: 1
-        # 注意：不能 deny `subagent` —— 它是这一行自己注册的 scoped 工具，不在全局工具库里，
-        # 写进 deny 会让 tools.restrict() 校验失败、整个委派路径报 "unknown global tool"（v0.8.0 踩过）。
-        # 子智能体拿不到 subagent_fork/workflow/ralph，加上 maxDepth: 1，实际已无派发能力。
-        toolFilter:
-          deny:
-            - subagent_fork
-            - workflow
-            - ralph
+        # 旧版还写了 toolFilter.deny: [subagent_fork, workflow, ralph]，把这三个名从子会话工具目录里摘掉。
+        # 宿主 2.0.23-next 起这一步被禁：tool-subagent 的 config 里出现 persona / toolFilter 会直接抛
+        #   "tool-subagent: toolFilter is no longer supported; configure persona and tool plugins in an
+        #    Agent Preset and select it with agentPreset (spawn only)"
+        # 整个 delegation group 随之挂不上，红队预设显示"加载失败"。故此处删除 toolFilter，改由 maxDepth 兜底。
+        # 真要按工具裁剪子智能体：在 Agent Preset 里配工具集，再用 agentPreset（spawn only，且 provider 需
+        # 支持 agentPreset 能力）或 allowedAgentPresets 选中它。
 
     # Fork omits model selection so provider/model stay equal to the parent and
     # the inherited history remains eligible for KV Cache reuse. This preset
@@ -329,7 +330,6 @@
       config:
         provider: fork
         toolName: subagent_fork
-        backgroundMode: continuable
 
     # Production dsh does not install these optional providers. Install the
     # matching Bundle in this Profile and restart the Host, then copy this
@@ -341,7 +341,6 @@
       config:
         provider: codex
         toolName: subagent_codex
-        backgroundMode: one-shot
         maxDepth: provider-managed
 
     - id: tool-subagent-claude-code
@@ -350,7 +349,6 @@
       config:
         provider: claude-code
         toolName: subagent_claude_code
-        backgroundMode: one-shot
         maxDepth: provider-managed
 
     - id: workflow-worker-thread
